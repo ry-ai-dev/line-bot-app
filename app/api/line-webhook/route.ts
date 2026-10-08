@@ -1,6 +1,11 @@
 import { messagingApi, validateSignature, webhook } from "@line/bot-sdk";
 import { createServiceClient } from "@/lib/supabase/service";
-import { generateAnswer, type Confidence, type FaqEntry } from "@/lib/claude";
+import {
+  generateAnswer,
+  type Confidence,
+  type FaqEntry,
+  type MenuEntry,
+} from "@/lib/claude";
 
 const channelSecret = process.env.LINE_CHANNEL_SECRET ?? "";
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN ?? "";
@@ -52,6 +57,24 @@ async function fetchFaqList(): Promise<FaqEntry[]> {
   }
 }
 
+async function fetchMenuList(): Promise<MenuEntry[]> {
+  try {
+    const supabase = createServiceClient();
+    const { data, error } = await supabase
+      .from("menus")
+      .select("name, price, description")
+      .order("sort_order", { ascending: true });
+    if (error) {
+      console.error("メニューの取得に失敗しました:", error.message);
+      return [];
+    }
+    return data ?? [];
+  } catch (error) {
+    console.error("Supabase への接続に失敗しました:", error);
+    return [];
+  }
+}
+
 async function notifyOwnerOfLowConfidence(params: {
   userMessage: string;
   botAnswer: string;
@@ -93,8 +116,15 @@ async function handleTextMessageEvent(event: webhook.MessageEvent) {
     });
   }
 
-  const faqList = await fetchFaqList();
-  const { answer, confidence } = await generateAnswer(receivedText, faqList);
+  const [faqList, menuList] = await Promise.all([
+    fetchFaqList(),
+    fetchMenuList(),
+  ]);
+  const { answer, confidence } = await generateAnswer(
+    receivedText,
+    faqList,
+    menuList
+  );
 
   try {
     await lineClient.replyMessage({

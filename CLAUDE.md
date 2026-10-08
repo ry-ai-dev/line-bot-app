@@ -87,3 +87,31 @@ confident are you in this answer?"), always give concrete, checkable criteria fo
 instead of letting the model grade itself leniently — e.g. "FAQ に該当する記述が無い場合は確信度を
 5以下にする" rather than just "確信度を0〜10で答えて". Vague scales trend toward inflated
 self-reported confidence.
+
+## Admin screen UI rules (`/admin`)
+
+The owner barely uses a PC — every `/admin` screen is phone-first and must stay usable with one
+thumb on a small screen:
+
+- Every tappable control (buttons, links styled as buttons) must be at least 44px tall
+  (`min-h-[44px]` or equivalent) — this is the minimum comfortable touch target size.
+- Avoid technical jargon in visible copy. Say things in plain Japanese a non-technical shop owner
+  would use (e.g. "保存中..." not "送信中: PATCH /faq"), and keep error messages in plain language
+  describing what to do next.
+- Any action that calls the server (save, delete, send) must show an in-progress label (e.g.
+  "保存中...", "削除中...", "送信中...") and `disabled` the triggering button for the duration of
+  the request — never allow a second tap to fire a second request.
+- Any delete action must go through a confirmation dialog describing what will be removed and that
+  it cannot be undone before the request is sent.
+- New admin screens should follow the existing `faq`/`menus` CRUD pattern (`app/admin/(protected)/`
+  route group, single form shared by create/edit via an `isEdit` flag, `AdminHeader` for the back
+  link + logout button) rather than introducing a new layout convention.
+
+## Admin API authorization
+
+Any API route under `app/api/admin/` (e.g. `broadcast`) must verify the caller is logged in
+*and* that `is_bot_admin()` returns true **inside the route handler itself**, using the
+server-side Supabase client (`lib/supabase/server.ts`). Never rely on the `/admin` page/proxy
+gate alone — Next.js proxy (`proxy.ts`) only protects page navigation, not direct API calls, so
+each privileged route must re-check authorization server-side before doing anything irreversible
+(e.g. broadcasting a LINE message to all users).

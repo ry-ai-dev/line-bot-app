@@ -12,6 +12,12 @@ export interface FaqEntry {
   answer: string;
 }
 
+export interface MenuEntry {
+  name: string;
+  price: number;
+  description: string | null;
+}
+
 export interface GenerateAnswerResult {
   answer: string;
   confidence: Confidence;
@@ -22,7 +28,7 @@ const FALLBACK_RESULT: GenerateAnswerResult = {
   confidence: "low",
 };
 
-function buildSystemPrompt(faqList: FaqEntry[]): string {
+function buildSystemPrompt(faqList: FaqEntry[], menuList: MenuEntry[]): string {
   const faqText = faqList
     .map(
       (faq, index) =>
@@ -30,16 +36,28 @@ function buildSystemPrompt(faqList: FaqEntry[]): string {
     )
     .join("\n");
 
+  const menuText = menuList
+    .map(
+      (menu, index) =>
+        `${index + 1}. ${menu.name} / ${menu.price.toLocaleString("ja-JP")}円${
+          menu.description ? ` / ${menu.description}` : ""
+        }`
+    )
+    .join("\n");
+
   return `あなたは美容室の問い合わせ対応をするLINE公式アカウントのアシスタントです。
-以下のFAQ一覧だけを根拠情報として、ユーザーの質問に日本語で回答してください。
+以下のFAQ一覧とメニュー・料金一覧だけを根拠情報として、ユーザーの質問に日本語で回答してください。
 
 # FAQ一覧
 ${faqText}
 
+# メニュー・料金一覧
+${menuText}
+
 # 回答ルール
-- FAQに直接該当する記述がある場合は confidence を "high" にする。
-- FAQから推測すれば答えられるが完全には一致しない場合は confidence を "mid" にする。
-- FAQ に該当する記述が無い場合、質問がFAQと関係ない場合、または判断がつかない場合は confidence を "low" にする。
+- FAQまたはメニュー・料金一覧に直接該当する記述がある場合は confidence を "high" にする。
+- FAQ・メニューから推測すれば答えられるが完全には一致しない場合は confidence を "mid" にする。
+- FAQ・メニューに該当する記述が無い場合、質問が関係ない場合、または判断がつかない場合は confidence を "low" にする。
 - 自己判断で新しい情報を作らないこと。わからない場合は「わかりません、担当者に確認します」のように正直に答え、confidenceを"low"にする。
 
 # 出力形式
@@ -63,13 +81,14 @@ function extractJsonText(text: string): string {
 
 export async function generateAnswer(
   userMessage: string,
-  faqList: FaqEntry[]
+  faqList: FaqEntry[],
+  menuList: MenuEntry[] = []
 ): Promise<GenerateAnswerResult> {
   try {
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5",
       max_tokens: 1024,
-      system: buildSystemPrompt(faqList),
+      system: buildSystemPrompt(faqList, menuList),
       messages: [{ role: "user", content: userMessage }],
     });
 
