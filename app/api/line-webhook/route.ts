@@ -111,7 +111,7 @@ const NON_TEXT_MESSAGE_LABELS: Record<NonTextMessageType, string> = {
 };
 
 const UNSUPPORTED_MESSAGE_REPLY =
-  "メッセージありがとうございます。申し訳ございませんが、画像やスタンプ以外の形式にはまだ対応しておりません。\nテキストでご質問をお送りください。";
+  "メッセージありがとうございます。申し訳ございませんが、画像などの形式にはまだ対応しておりません。\nお手数ですが、テキストでご質問をお送りください。";
 
 async function handleMessageEvent(event: webhook.MessageEvent) {
   if (!event.replyToken) {
