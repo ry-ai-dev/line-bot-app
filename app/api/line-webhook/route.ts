@@ -40,38 +40,46 @@ async function recordConversation(params: {
 }
 
 async function fetchFaqList(): Promise<FaqEntry[]> {
-  try {
-    const supabase = createServiceClient();
-    const { data, error } = await supabase
-      .from("faq")
-      .select("category, question, answer")
-      .order("sort_order", { ascending: true });
-    if (error) {
-      console.error("FAQの取得に失敗しました:", error.message);
-      return [];
-    }
-    return data ?? [];
-  } catch (error) {
-    console.error("Supabase への接続に失敗しました:", error);
-    return [];
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("faq")
+    .select("category, question, answer")
+    .order("sort_order", { ascending: true });
+  if (error) {
+    throw new Error(`FAQの取得でエラーが発生しました: ${error.message}`);
   }
+  if (!data || data.length === 0) {
+    console.log("FAQは0件です(未登録のため回答に使えるFAQがありません)");
+  }
+  return data ?? [];
 }
 
 async function fetchMenuList(): Promise<MenuEntry[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("menus")
+    .select("name, price, description")
+    .order("sort_order", { ascending: true });
+  if (error) {
+    throw new Error(`メニューの取得でエラーが発生しました: ${error.message}`);
+  }
+  if (!data || data.length === 0) {
+    console.log("メニューは0件です(未登録のため回答に使えるメニューがありません)");
+  }
+  return data ?? [];
+}
+
+async function pushToOwner(text: string) {
+  if (!ownerLineUserId) {
+    return;
+  }
   try {
-    const supabase = createServiceClient();
-    const { data, error } = await supabase
-      .from("menus")
-      .select("name, price, description")
-      .order("sort_order", { ascending: true });
-    if (error) {
-      console.error("メニューの取得に失敗しました:", error.message);
-      return [];
-    }
-    return data ?? [];
+    await lineClient.pushMessage({
+      to: ownerLineUserId,
+      messages: [{ type: "text", text }],
+    });
   } catch (error) {
-    console.error("Supabase への接続に失敗しました:", error);
-    return [];
+    console.error("オーナーへの通知に失敗しました:", error);
   }
 }
 
@@ -79,22 +87,15 @@ async function notifyOwnerOfLowConfidence(params: {
   userMessage: string;
   botAnswer: string;
 }) {
-  if (!ownerLineUserId) {
-    return;
-  }
-  try {
-    await lineClient.pushMessage({
-      to: ownerLineUserId,
-      messages: [
-        {
-          type: "text",
-          text: `お客様から確信度の低い質問がありました。\n質問：${params.userMessage}\nbotの回答：${params.botAnswer}`,
-        },
-      ],
-    });
-  } catch (error) {
-    console.error("オーナーへのエスカレーション通知に失敗しました:", error);
-  }
+  await pushToOwner(
+    `お客様から確信度の低い質問がありました。\n質問：${params.userMessage}\nbotの回答：${params.botAnswer}`
+  );
+}
+
+async function notifyOwnerOfFaqFetchError(userMessage: string) {
+  await pushToOwner(
+    `FAQ取得エラー\nFAQ・メニューの取得に失敗したため、お客様には「担当者に確認します」と返信しました。\n質問：${userMessage}\n確認をお願いします。`
+  );
 }
 
 type NonTextMessageType = Exclude<
@@ -112,6 +113,8 @@ const NON_TEXT_MESSAGE_LABELS: Record<NonTextMessageType, string> = {
 
 const UNSUPPORTED_MESSAGE_REPLY =
   "メッセージありがとうございます。申し訳ございませんが、画像などの形式にはまだ対応しておりません。\nお手数ですが、テキストでご質問をお送りください。";
+
+const FAQ_FETCH_ERROR_REPLY = "申し訳ございません、担当者に確認してお答えします";
 
 async function handleMessageEvent(event: webhook.MessageEvent) {
   if (!event.replyToken) {
@@ -154,10 +157,39 @@ async function handleMessageEvent(event: webhook.MessageEvent) {
     });
   }
 
-  const [faqList, menuList] = await Promise.all([
-    fetchFaqList(),
-    fetchMenuList(),
-  ]);
+  let faqList: FaqEntry[];
+  let menuList: MenuEntry[];
+  try {
+    [faqList, menuList] = await Promise.all([
+      fetchFaqList(),
+      fetchMenuList(),
+    ]);
+  } catch (error) {
+    console.error("FAQ・メニューの取得エラーのため回答をスキップしました:", error);
+
+    try {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: "text", text: FAQ_FETCH_ERROR_REPLY }],
+      });
+    } catch (replyError) {
+      console.error("LINEへの返信に失敗しました:", replyError);
+    }
+
+    if (userId) {
+      await recordConversation({
+        lineUserId: userId,
+        direction: "bot",
+        messageText: FAQ_FETCH_ERROR_REPLY,
+        confidence: "low",
+        escalated: true,
+      });
+    }
+
+    await notifyOwnerOfFaqFetchError(receivedText);
+    return;
+  }
+
   const { answer, confidence } = await generateAnswer(
     receivedText,
     faqList,
