@@ -97,15 +97,53 @@ async function notifyOwnerOfLowConfidence(params: {
   }
 }
 
-async function handleTextMessageEvent(event: webhook.MessageEvent) {
-  if (event.message.type !== "text") {
-    return;
-  }
+type NonTextMessageType = Exclude<
+  webhook.MessageContent["type"],
+  "text" | "sticker"
+>;
+
+const NON_TEXT_MESSAGE_LABELS: Record<NonTextMessageType, string> = {
+  image: "[画像]",
+  video: "[動画]",
+  audio: "[音声]",
+  file: "[ファイル]",
+  location: "[位置情報]",
+};
+
+const UNSUPPORTED_MESSAGE_REPLY =
+  "メッセージありがとうございます。申し訳ございませんが、画像やスタンプ以外の形式にはまだ対応しておりません。\nテキストでご質問をお送りください。";
+
+async function handleMessageEvent(event: webhook.MessageEvent) {
   if (!event.replyToken) {
     return;
   }
 
   const userId = event.source?.type === "user" ? event.source.userId : undefined;
+
+  if (event.message.type === "sticker") {
+    return;
+  }
+
+  if (event.message.type !== "text") {
+    if (userId) {
+      await recordConversation({
+        lineUserId: userId,
+        direction: "user",
+        messageText: NON_TEXT_MESSAGE_LABELS[event.message.type],
+      });
+    }
+
+    try {
+      await lineClient.replyMessage({
+        replyToken: event.replyToken,
+        messages: [{ type: "text", text: UNSUPPORTED_MESSAGE_REPLY }],
+      });
+    } catch (error) {
+      console.error("LINEへの返信に失敗しました:", error);
+    }
+    return;
+  }
+
   const receivedText = event.message.text;
 
   if (userId) {
@@ -177,7 +215,7 @@ export async function POST(request: Request) {
       continue;
     }
     try {
-      await handleTextMessageEvent(event);
+      await handleMessageEvent(event);
     } catch (error) {
       console.error("Webhookイベントの処理に失敗しました:", error);
     }
