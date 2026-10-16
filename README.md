@@ -133,8 +133,12 @@ LINEから実際にメッセージを送って動作確認する場合は、ngro
 本番はVercelにデプロイしています(公開URL: https://line-bot-app-psi.vercel.app)。
 
 - Vercelダッシュボードの環境変数(上記表の変数名)を設定してください。**環境変数を追加・変更した場合は、次のデプロイ(Redeploy)まで反映されません。**
-- LINE Developers ConsoleのMessaging API設定で、Webhook URLを `https://line-bot-app-psi.vercel.app/api/line-webhook` にし、「Webhookの利用」をオンにしてください。応答モードは「Bot」にしており、この設定で実際にLINEからメッセージを送って動作確認済みです。
-- あいさつメッセージなど、LINE公式アカウント側の他の自動応答機能は、本Botの返信と二重に送信されないよう**オフにしておくことを推奨**します。
+- LINE Developers ConsoleのMessaging API設定で、Webhook URLを `https://line-bot-app-psi.vercel.app/api/line-webhook` にし、「Webhookの利用」をオンにしてください。
+- LINE Official Account Managerの設定(トーク設定)は、以下のようにしています。この設定で実際にLINEからメッセージを送って動作確認済みです。
+  - **Webhook**: オン(botが動くために必須)
+  - **チャット**: オン(オーナーが管理画面を経由せず、LINEのトーク画面から直接手動で返信できます。botの自動応答と併用可能)
+  - **応答メッセージ**: オフ(オンのままだとbotの返信と二重に送信されるため)
+  - **あいさつメッセージ**: オフ
 - Messaging APIの利用量上限や、チャネル単位の他の設定項目まで網羅的に見直したかどうかは**要確認**です。
 
 ## 9. 運用上の注意
