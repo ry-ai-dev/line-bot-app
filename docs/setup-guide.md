@@ -80,8 +80,8 @@ Supabaseダッシュボードでプロジェクトを用意します。新規作
 LINE Developersコンソールで、Messaging APIのチャネルを新規作成します。
 **【要確認】** コンソール上の具体的な作成手順(プロバイダー作成の有無など)は、本手順書作成時点で実際の画面操作を確認していません。
 
-Channel secret(`LINE_CHANNEL_SECRET`)とChannel access token(`LINE_CHANNEL_ACCESS_TOKEN`)もこのチャネルの設定画面から取得しますが、
-**【要確認】** 画面上の具体的な配置(タブ名・項目名)は本手順書作成時点で確認していません。
+Channel secret(`LINE_CHANNEL_SECRET`)は **「チャネル基本設定」** にあります。
+Channel access token(`LINE_CHANNEL_ACCESS_TOKEN`)は **「Messaging API設定」** にあり、長期のトークンを発行して使用します。
 
 ### 4-2. Webhook URLの設定
 
