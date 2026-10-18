@@ -35,8 +35,7 @@ npm install
 
 ### 3-1. プロジェクトの作成
 
-Supabaseダッシュボードで新規プロジェクトを作成します。
-**【要確認】** 既存の `mitsumori-app` と同じSupabaseプロジェクト(`xvzhjxockwommtwwfhjy`)を共用する運用かどうかは、`CLAUDE.md` に記載があるのみで、本手順書作成時点でダッシュボードを直接確認してはいません。新規に引き継ぐ場合は、どちらの方針にするか関係者と確認してください。
+Supabaseダッシュボードでプロジェクトを用意します。新規作成でも、既存プロジェクトとの共用でも動作します。共用する場合は、テーブル名(`faq`/`menus`/`conversations`/`bot_admins`)が他のアプリと重ならないことを確認してください。
 
 ### 3-2. マイグレーションの適用(0001→0004の順)
 
@@ -55,16 +54,18 @@ Supabaseダッシュボードで新規プロジェクトを作成します。
 
 管理画面(`/admin`)へのログインはSupabase Authのメール/パスワード認証(`app/admin/login/LoginForm.tsx` が `supabase.auth.signInWithPassword` を使用)です。ログインできても、`bot_admins` テーブルに登録されたユーザーのみが `is_bot_admin()` 経由でFAQ・メニュー・会話ログを操作できます(`supabase/migrations/0003_bot_admins.sql`)。
 
-手順:
+実際に行った手順は、Supabaseの管理者ユーザーを用意し、SQL Editorで `bot_admins` にそのユーザーを登録する、というものです。
+
 1. Supabaseダッシュボードの **Authentication > Users** で、オーナー用のユーザーをメール/パスワードで作成する。
+   **【要確認】** この画面操作そのもの(項目名・ボタンの配置など)は、本手順書作成時点で実際の画面を確認していません。
 2. 作成したユーザーの `id`(UUID)を確認する。
-3. SQL Editorで以下を実行し、`bot_admins` に登録する。
+3. SQL Editorで以下を実行し、`bot_admins` に登録する(`<ユーザーのUUID>` はプレースホルダーです。実際の値には書き換えません)。
 
    ```sql
-   insert into bot_admins (user_id) values ('<手順2で確認したUUID>');
+   insert into bot_admins (user_id) values ('<ユーザーのUUID>');
    ```
 
-**【要確認】** 上記の「Authentication > Users からユーザー作成 → UUIDをbot_adminsにinsert」という手順は、`0003_bot_admins.sql` のテーブル定義(`user_id uuid primary key references auth.users(id)`)から論理的に導いたものです。実際にダッシュボード上でこの操作を行って動作確認したログは本手順書作成時点では確認できていません。
+   `bot_admins` のカラムは `user_id`(uuid, primary key, `auth.users(id)` へのFK)と `created_at`(default now())のみのため(`supabase/migrations/0003_bot_admins.sql`)、挿入が必要なのは `user_id` だけです。
 
 ### 3-4. テーブルの権限(GRANT)が必要な理由
 
@@ -79,9 +80,12 @@ Supabaseダッシュボードで新規プロジェクトを作成します。
 LINE Developersコンソールで、Messaging APIのチャネルを新規作成します。
 **【要確認】** コンソール上の具体的な作成手順(プロバイダー作成の有無など)は、本手順書作成時点で実際の画面操作を確認していません。
 
+Channel secret(`LINE_CHANNEL_SECRET`)とChannel access token(`LINE_CHANNEL_ACCESS_TOKEN`)もこのチャネルの設定画面から取得しますが、
+**【要確認】** 画面上の具体的な配置(タブ名・項目名)は本手順書作成時点で確認していません。
+
 ### 4-2. Webhook URLの設定
 
-チャネルのMessaging API設定で、Webhook URLを設定します。
+Webhook URLは、チャネルの **「Messaging API設定」** から設定します。
 
 - 本番: `https://line-bot-app-psi.vercel.app/api/line-webhook`(`README.md` に記載・動作確認済み)
 - ローカル確認用にURLを一時的に変更する場合は本手順書の7章を参照してください。
@@ -140,7 +144,11 @@ LINEはpublicなURLにしかWebhookを送れないため、ローカルサーバ
 
 > LINEから実際にメッセージを送って動作確認する場合は、ngrok等でローカルサーバーを公開し、LINE Developers ConsoleのWebhook URLをそのURLに変更する必要があります
 
-**【要確認】** このリポジトリにngrok等の設定ファイルは含まれておらず、具体的なngrokコマンドや設定手順は本手順書作成時点で確認していません。また、ローカル確認のためにWebhook URLを変更した場合、確認後は本番URL(`https://line-bot-app-psi.vercel.app/api/line-webhook`)に戻すのを忘れないようにしてください。
+本プロジェクトでの動作確認は、本番環境(Vercel)でのみ実施しています。ローカルでWebhookを試す場合の参考手順は以下の通りですが、**【要確認】** このリポジトリにngrok等の設定ファイルは含まれておらず、以下の手順自体は実際に試して動作確認したものではありません(未検証の参考手順です)。
+
+1. `ngrok http 3000` 等でローカルサーバーをpublicなURLに公開する。
+2. LINE Developers ConsoleのWebhook URLを、発行されたngrokのURL(例: `https://xxxx.ngrok-free.app/api/line-webhook`)に一時的に変更する。
+3. 確認が終わったら、Webhook URLを本番URL(`https://line-bot-app-psi.vercel.app/api/line-webhook`)に戻す。
 
 ---
 
